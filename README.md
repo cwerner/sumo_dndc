@@ -5,6 +5,11 @@ An attempt of a **su**rrogate **mo**del for LandscapeDNDC. Very experimental ðŸ¤
 
 In brief, this is an attempt to mimic the behavior of LandscapeDNDC using a artifical neural network (ANN). Ideally, this will allow a faster inference/ model prediction without the need for a full LandscapeDNDC simulation.
 
+<figure>
+    <img src="./images/sketch.png" alt="Sketch" width="400"/>
+    <figcaption>A sketch of the model setup</figcaption>
+</figure>
+
 In the initial phase, only a single side is used for training.
 
 ## Libraries
