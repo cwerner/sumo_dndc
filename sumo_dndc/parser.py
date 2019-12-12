@@ -32,6 +32,12 @@ class OutFile(Enum):
     SOILCHEM_DAILY = auto()
 
 class BaseParser:
+    _fileName = None
+
+    @classmethod
+    def is_parser_for(cls, fileType: InFile) -> bool:
+        return fileType == cls._fileType
+
     def __init__(self, fileType: InFile) -> None:
         self._data = None
         self._name = None
@@ -94,8 +100,10 @@ class TxtParser(BaseParser):
 
 
 class AirchemParser(TxtParser):
+    _fileType = InFile.AIRCHEM
+
     def __init__(self, inFile: Optional[PathOrStr] = None) -> None:
-        super().__init__(InFile.AIRCHEM)
+        super().__init__(self._fileType)
         if inFile:
             self.parse(inFile)
     
@@ -107,8 +115,10 @@ class AirchemParser(TxtParser):
 
 
 class ClimateParser(TxtParser):
+    _fileType = InFile.CLIMATE
+   
     def __init__(self, inFile: Optional[PathOrStr] = None) -> None:
-        super().__init__(InFile.CLIMATE)
+        super().__init__(self._fileType)
         if inFile:
             self.parse(inFile)
     
@@ -120,8 +130,10 @@ class ClimateParser(TxtParser):
 
 
 class SiteParser(XmlParser):
+    _fileType = InFile.SITE
+
     def __init__(self, inFile: Optional[PathOrStr] = None) -> None:
-        super().__init__(InFile.SITE)
+        super().__init__(self._fileType)
         if inFile:
             self.parse(inFile)
 
@@ -147,13 +159,15 @@ class SiteParser(XmlParser):
 
 # factory
 class Parser:
+    """a parser factory for a set of dndc file types"""
+    # TODO: add an option to "sense" the file by parsing the optionally provided file name
+    parsers = [AirchemParser, ClimateParser, SiteParser]
     def __new__(self, fileType: InFile, inFile: Optional[PathOrStr] = None) -> InFile:
-        if isinstance(fileType, InFile):
-            if fileType == InFile.CLIMATE: 
-                return ClimateParser(inFile)
-            elif fileType == InFile.AIRCHEM: 
-                return AirchemParser(inFile) 
-            elif fileType == InFile.SITE: 
-                return SiteParser(inFile) 
-            else:
-                raise NotImplementedError
+        matched_parsers = [r for r in self.parsers if r.is_parser_for(fileType)]
+        if len(matched_parsers) == 1:
+            print(f'Creating Parser:{matched_parsers[0]}')
+            return matched_parsers[0](inFile)
+        elif len(matched_parsers) > 1:
+            print('Multiple parsers matched. Something is very wrong here!')
+        else:
+            raise NotImplementedError
