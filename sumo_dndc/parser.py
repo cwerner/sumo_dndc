@@ -70,7 +70,6 @@ class XmlParser(BaseParser):
         super().__init__(fileType)
 
     def __repr__(self):
-        # pretty print xml
         pretty_xml = (
             MD.parseString(ET.tostring(self._data))
             .toprettyxml(encoding="utf8")
@@ -107,7 +106,6 @@ class TxtParser(BaseParser):
         daily: bool = False,
         vars: Optional[List[str]] = None,
     ) -> None:
-        print("Parsing TxtFile", inFile)
         fileInMem = io.StringIO(Path(inFile).read_text())
 
         if skip_header:
@@ -192,7 +190,6 @@ class Parser:
     def __new__(self, fileType: InFile, inFile: Optional[PathOrStr] = None) -> InFile:
         matched_parsers = [r for r in self.parsers if r.is_parser_for(fileType)]
         if len(matched_parsers) == 1:
-            print(f"Creating Parser:{matched_parsers[0]}")
             return matched_parsers[0](inFile)
         elif len(matched_parsers) > 1:
             print("Multiple parsers matched. Something is very wrong here!")
