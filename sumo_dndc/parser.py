@@ -56,7 +56,7 @@ class BaseParser:
             print("Not a valid input type")
 
     def __repr__(self):
-        return f'Parser: {self._type}, {self._path}\nData excerpt:\n{"" if self._data is None else repr(self._data.head())}'
+        return f'Parser: {self._type}, {self._path}\nData excerpt:\n{"" if self.data is None else repr(self.data.head())}'
 
     @property
     def data(self):
@@ -77,15 +77,13 @@ class XmlParser(BaseParser):
 
     def __repr__(self):
         pretty_xml = (
-            MD.parseString(ET.tostring(self._data))
-            .toprettyxml(encoding="utf8")
-            .decode()
+            MD.parseString(ET.tostring(self.data)).toprettyxml(encoding="utf8").decode()
         )
         # strip whitespace lines
         pretty_xml = "\n".join(
             [line for line in pretty_xml.split("\n") if line.strip() != ""][:6]
         )
-        return f'Parser: {self._type}, {self._path}\nData excerpt:\n{"" if self._data is None else pretty_xml}'
+        return f'Parser: {self._type}, {self._path}\nData excerpt:\n{"" if self.data is None else pretty_xml}'
 
 
 class TxtParser(BaseParser):
@@ -198,6 +196,13 @@ class DailyResultsParser(TxtParser):
         super().__init__(self._fileType)
         if inFile:
             self.parse(inFile, **kwargs)
+
+    @property
+    def data_nounits(self):
+        self._data.columns = (
+            pd.Series(self._data.columns.values).str.replace(r"\[.*\]", "").values
+        )
+        return self._data
 
     def parse(
         self,
