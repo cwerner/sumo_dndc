@@ -1,6 +1,7 @@
 # parser.py
 
 import io
+import numpy as np
 import pandas as pd
 
 from enum import Enum, auto
@@ -32,29 +33,34 @@ class OutFile(Enum):
     """valid DNDC output file types"""
 
     # currently only soilchemistry daily allowed
-    SOILCHEM_DAILY = auto()
+    DAILY = auto()
+    YEARLY = auto()
 
 
 class BaseParser:
     _fileName = None
 
     @classmethod
-    def is_parser_for(cls, fileType: InFile) -> bool:
+    def is_parser_for(cls, fileType: Union[InFile, OutFile]) -> bool:
         return fileType == cls._fileType
 
-    def __init__(self, fileType: InFile) -> None:
+    def __init__(self, fileType: Union[InFile, OutFile]) -> None:
         self._data = None
         self._name = None
         self._path = None
         self._type = None
 
-        if isinstance(fileType, InFile):
+        if isinstance(fileType, InFile) or isinstance(fileType, OutFile):
             self._type = fileType
         else:
             print("Not a valid input type")
 
     def __repr__(self):
         return f'Parser: {self._type}, {self._path}\nData excerpt:\n{"" if self._data is None else repr(self._data.head())}'
+
+    @property
+    def data(self):
+        return self._data
 
     def parse(self, inFile: Path):
         """parse source dndc file"""
@@ -66,7 +72,7 @@ class BaseParser:
 
 
 class XmlParser(BaseParser):
-    def __init__(self, fileType: InFile) -> None:
+    def __init__(self, fileType: Union[InFile, OutFile]) -> None:
         super().__init__(fileType)
 
     def __repr__(self):
@@ -83,7 +89,9 @@ class XmlParser(BaseParser):
 
 
 class TxtParser(BaseParser):
-    def __init__(self, fileType: InFile, inFile: Optional[PathOrStr] = None) -> None:
+    def __init__(
+        self, fileType: Union[InFile, OutFile], inFile: Optional[PathOrStr] = None
+    ) -> None:
         super().__init__(fileType)
 
         if inFile:
@@ -113,7 +121,7 @@ class TxtParser(BaseParser):
                 if "%data" in line:
                     break
 
-        data = pd.read_csv(fileInMem, delim_whitespace=True)
+        data = pd.read_csv(fileInMem, sep="\t")
         data = self._set_index_col(data)
         if vars:
             data = data[vars]
@@ -137,10 +145,10 @@ class AirchemParser(TxtParser):
 class ClimateParser(TxtParser):
     _fileType = InFile.CLIMATE
 
-    def __init__(self, inFile: Optional[PathOrStr] = None) -> None:
+    def __init__(self, inFile: Optional[PathOrStr] = None, **kwargs) -> None:
         super().__init__(self._fileType)
         if inFile:
-            self.parse(inFile)
+            self.parse(inFile, **kwargs)
 
     def parse(self, inFile: PathOrStr, vars: Optional[List[str]] = None) -> None:
         """parse climate file (optional: selection of vars)"""
@@ -180,17 +188,54 @@ class SiteParser(XmlParser):
         self._parse(inFile, id=id)
 
 
+# ---
+
+
+class DailyResultsParser(TxtParser):
+    _fileType = OutFile.DAILY
+
+    def __init__(self, inFile: Optional[PathOrStr] = None, **kwargs) -> None:
+        super().__init__(self._fileType)
+        if inFile:
+            self.parse(inFile, **kwargs)
+
+    def parse(
+        self,
+        inFile: PathOrStr,
+        vars: Optional[List[str]] = None,
+        ids: Optional[List[int]] = None,
+    ) -> None:
+        """parse daily result file (optional: selection of vars)"""
+        # since we want to catch multi-id files we select vars at the end and not in _parse
+        self._parse(inFile, daily=True)
+        if ids:
+            ids_present = np.unique(self._data.id.values)
+            if set(ids).issubset(set(ids_present)):
+                self._data = self._data[self._data.id.isin(ids)]
+            else:
+                print(f"IDs not in file: requested: {ids}; present: {ids_present}")
+        if vars:
+            self._data = self._data[vars]
+
+    def encode(self, vars=None):
+        cols = self._data.columns.values
+        if vars:
+            cols = [v for v in vars if v in cols]
+
+
 # factory
 class Parser:
     """a parser factory for a set of dndc file types"""
 
     # TODO: add an option to "sense" the file by parsing the optionally provided file name
-    parsers = [AirchemParser, ClimateParser, SiteParser]
+    parsers = [AirchemParser, ClimateParser, SiteParser, DailyResultsParser]
 
-    def __new__(self, fileType: InFile, inFile: Optional[PathOrStr] = None) -> InFile:
+    def __new__(
+        self, fileType: InFile, inFile: Optional[PathOrStr] = None, **kwargs
+    ) -> InFile:
         matched_parsers = [r for r in self.parsers if r.is_parser_for(fileType)]
         if len(matched_parsers) == 1:
-            return matched_parsers[0](inFile)
+            return matched_parsers[0](inFile, **kwargs)
         elif len(matched_parsers) > 1:
             print("Multiple parsers matched. Something is very wrong here!")
         else:
